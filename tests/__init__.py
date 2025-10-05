@@ -1,0 +1,3 @@
+"""
+Gofka Python Client Tests
+"""
