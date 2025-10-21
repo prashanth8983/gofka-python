@@ -48,6 +48,92 @@ pip install gofka-python[compression]
 pip install python-snappy lz4
 ```
 
+## 🎯 Interactive Examples (NEW!)
+
+### Interactive Producer
+Send messages interactively with real-time feedback:
+
+```bash
+python3 examples/interactive_producer.py [broker_addr] [topic]
+
+# Example:
+python3 examples/interactive_producer.py localhost:9092 test-topic
+```
+
+**Features:**
+- ✅ Type messages and press Enter to send
+- ✅ Real-time latency feedback (ms)
+- ✅ Live statistics (type `stats`)
+- ✅ Graceful shutdown (Ctrl+C or `quit`)
+
+### Interactive Consumer
+Poll for messages in real-time:
+
+```bash
+python3 examples/interactive_consumer.py [broker_addr] [topic] [group_id]
+
+# Example:
+python3 examples/interactive_consumer.py localhost:9092 test-topic my-group
+```
+
+**Features:**
+- ✅ Continuous polling (1-second intervals)
+- ✅ Real-time message display
+- ✅ Auto statistics every 10 messages
+- ✅ Graceful shutdown (Ctrl+C)
+
+### Stress Test
+Performance testing with detailed metrics:
+
+```bash
+python3 examples/stress_test.py \
+  --broker localhost:9092 \
+  --topic stress-test \
+  --messages 10000 \
+  --size 100 \
+  --mode both
+
+# Options:
+#   --broker: Broker address (default: localhost:9092)
+#   --topic: Topic name (default: stress-test)
+#   --messages: Number of messages (default: 1000)
+#   --size: Message size in bytes (default: 100)
+#   --mode: produce|consume|both (default: both)
+```
+
+**Outputs:**
+- 📊 Throughput (msg/s)
+- 📊 Bandwidth (MB/s)
+- 📊 Latency percentiles (p50, p95, p99)
+- 📊 Progress bars
+
+## 🚀 Quick Start with Interactive Examples
+
+**Terminal 1 - Start Gofka Broker:**
+```bash
+cd ../Gofka  # Go to Gofka main project
+go run cmd/gofka-broker/main.go --bootstrap
+```
+
+**Terminal 2 - Interactive Producer:**
+```bash
+cd gofka-python
+python3 examples/interactive_producer.py
+# Type messages and see real-time delivery confirmations!
+```
+
+**Terminal 3 - Interactive Consumer:**
+```bash
+python3 examples/interactive_consumer.py
+# Watch messages appear in real-time!
+```
+
+**Terminal 4 - Run Stress Test:**
+```bash
+python3 examples/stress_test.py --messages 1000
+# See detailed performance metrics!
+```
+
 ## Quick Start
 
 ### Async Producer (Recommended)

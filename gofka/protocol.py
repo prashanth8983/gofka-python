@@ -114,10 +114,9 @@ class Protocol:
             correlation_id_data = self._recv_exact(4)
             correlation_id = struct.unpack('>I', correlation_id_data)[0]
 
-            # For now, return remaining data
-            # In production, you'd want to read a size prefix
-            # For simplicity, we read available data
-            return self.sock.recv(65536)
+            # Return empty bytes - actual response reading is done by the caller
+            # The correlation ID has been consumed, so caller can read the rest
+            return b''
         except Exception as e:
             raise ConnectionError(f"Failed to receive response: {e}")
 
@@ -143,15 +142,13 @@ class Protocol:
         payload.extend(struct.pack('>I', len(message)))
         payload.extend(message)
 
-        # Send request
-        response = self._send_request(APIKey.PRODUCE, 0, client_id, bytes(payload))
+        # Send request (correlation ID is consumed by _send_request)
+        self._send_request(APIKey.PRODUCE, 0, client_id, bytes(payload))
 
-        # Parse response: partition (4 bytes) + offset (8 bytes)
-        if len(response) >= 12:
-            partition_resp, offset = struct.unpack('>IQ', response[:12])
-            return offset
-        else:
-            raise GofkaError("Invalid produce response")
+        # Read response: partition (4 bytes) + offset (8 bytes)
+        response_data = self._recv_exact(12)
+        partition_resp, offset = struct.unpack('>IQ', response_data)
+        return offset
 
     def fetch(self, topic: str, partition: int, offset: int, client_id: str = "gofka-python") -> Optional[bytes]:
         """
@@ -164,16 +161,18 @@ class Protocol:
         payload.extend(struct.pack('>I', partition))
         payload.extend(struct.pack('>Q', offset))
 
-        # Send request
-        response = self._send_request(APIKey.FETCH, 0, client_id, bytes(payload))
+        # Send request (correlation ID is consumed by _send_request)
+        self._send_request(APIKey.FETCH, 0, client_id, bytes(payload))
 
-        # Parse response: message_len (4 bytes) + message
-        if len(response) >= 4:
-            message_len = struct.unpack('>I', response[:4])[0]
-            if len(response) >= 4 + message_len:
-                return response[4:4+message_len]
+        # Read response: message_len (4 bytes) + message
+        len_data = self._recv_exact(4)
+        message_len = struct.unpack('>I', len_data)[0]
 
-        return None
+        if message_len == 0:
+            return None
+
+        message_data = self._recv_exact(message_len)
+        return message_data
 
     def get_metadata(self, topics: List[str], client_id: str = "gofka-python") -> dict:
         """
