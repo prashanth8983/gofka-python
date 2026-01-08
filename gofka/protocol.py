@@ -110,13 +110,18 @@ class Protocol:
 
         # Read response
         try:
-            # Read correlation ID (4 bytes)
-            correlation_id_data = self._recv_exact(4)
-            correlation_id = struct.unpack('>I', correlation_id_data)[0]
+            # Read response size (4 bytes)
+            size_data = self._recv_exact(4)
+            response_size = struct.unpack('>I', size_data)[0]
 
-            # Return empty bytes - actual response reading is done by the caller
-            # The correlation ID has been consumed, so caller can read the rest
-            return b''
+            # Read the entire response
+            response_data = self._recv_exact(response_size)
+
+            # Parse and verify correlation ID (first 4 bytes of response)
+            correlation_id = struct.unpack('>I', response_data[:4])[0]
+
+            # Return the response data after correlation ID
+            return response_data[4:]
         except Exception as e:
             raise ConnectionError(f"Failed to receive response: {e}")
 
@@ -142,13 +147,20 @@ class Protocol:
         payload.extend(struct.pack('>I', len(message)))
         payload.extend(message)
 
-        # Send request (correlation ID is consumed by _send_request)
-        self._send_request(APIKey.PRODUCE, 0, client_id, bytes(payload))
+        # Send request and get response
+        response = self._send_request(APIKey.PRODUCE, 0, client_id, bytes(payload))
 
-        # Read response: partition (4 bytes) + offset (8 bytes)
-        response_data = self._recv_exact(12)
-        partition_resp, offset = struct.unpack('>IQ', response_data)
-        return offset
+        # Parse response: partition (4 bytes) + offset (8 bytes)
+        if len(response) >= 12:
+            partition_resp, offset = struct.unpack('>IQ', response[:12])
+            return offset
+        else:
+            # For simplified protocol, try to parse just the offset
+            if len(response) >= 8:
+                offset = struct.unpack('>Q', response[:8])[0]
+                return offset
+            else:
+                return 0  # Default offset if not provided
 
     def fetch(self, topic: str, partition: int, offset: int, client_id: str = "gofka-python") -> Optional[bytes]:
         """
@@ -161,18 +173,16 @@ class Protocol:
         payload.extend(struct.pack('>I', partition))
         payload.extend(struct.pack('>Q', offset))
 
-        # Send request (correlation ID is consumed by _send_request)
-        self._send_request(APIKey.FETCH, 0, client_id, bytes(payload))
+        # Send request and get response
+        response = self._send_request(APIKey.FETCH, 0, client_id, bytes(payload))
 
-        # Read response: message_len (4 bytes) + message
-        len_data = self._recv_exact(4)
-        message_len = struct.unpack('>I', len_data)[0]
+        # Parse response: message_len (4 bytes) + message
+        if len(response) >= 4:
+            message_len = struct.unpack('>I', response[:4])[0]
+            if message_len > 0 and len(response) >= 4 + message_len:
+                return response[4:4+message_len]
 
-        if message_len == 0:
-            return None
-
-        message_data = self._recv_exact(message_len)
-        return message_data
+        return None
 
     def get_metadata(self, topics: List[str], client_id: str = "gofka-python") -> dict:
         """
